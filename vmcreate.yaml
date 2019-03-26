@@ -1,0 +1,141 @@
+---
+
+- name: create a vm in openstack
+
+  hosts: localhost
+
+  tasks:
+
+    - name: launch an instance
+
+      os_server:
+
+        state: present
+
+        auth:
+
+          auth_url: http://172.16.6.107/identity/v3
+
+          username: admin
+
+          password: login123
+
+          project_name: admin
+
+        name: webserver1
+
+        availability_zone: nova
+
+        image: 3836245f-2dd3-4a3c-9653-91d1f9055a3b
+
+        key_name: test
+
+        timeout: 200
+
+        flavor: m1.tiny
+
+        security_groups: secgr 
+
+        auto_ip: no
+
+        nics:
+
+                #   - net-id: d1d03f0d-a6fb-48d5-a945-d3e93d16ff50
+
+          - net-name: testnet
+
+        meta:
+
+          hostname: test1
+
+          group: uge_master
+
+      register: webserver1
+
+ 
+
+    - debug:
+
+        msg: "Create {{webserver1.server.interface_ip}}"
+
+        # - wait_for:
+
+        #  host: "{{ webserver1.server.interface_ip }}"
+
+        # port: 22
+
+        #  search_regex: OpenSSH
+
+    - name: Add CentOS Instance to Inventory
+
+      add_host: name=webserver1 groups=webservers
+
+                ansible_ssh_host={{ webserver1.server.public_v4 }}
+
+ 
+
+ 
+
+ 
+
+    - name: launch an instance2
+
+      os_server:
+
+        state: present
+
+        auth:
+
+          auth_url: http://172.16.6.107/identity/v3
+
+          username: admin
+
+          password: login123
+
+          project_name: admin
+
+        name: webserver2
+
+        availability_zone: nova
+
+        image: 3836245f-2dd3-4a3c-9653-91d1f9055a3b
+
+        key_name: test
+
+        timeout: 200
+
+        flavor: m1.tiny
+
+        security_groups: secgr
+
+        auto_ip: yes
+
+        nics:
+
+          - net-id: 1dfda2e8-83a2-4c61-9ad2-31594a72159f
+
+          - net-name: public
+
+        meta:
+
+          hostname: test2
+
+          group: uge_master
+
+      register: webserver2
+
+    - debug:
+
+        msg: "Create {{webserver2.server.interface_ip}}"
+
+        #    - wait_for:
+
+        #   host: "{{ webserver2.server.interface_ip }}"
+
+        #  port: 22
+
+        # search_regex: OpenSSH
+
+    - name: Add CentOS Instance to Inventory
+
+      add_host: name=webserver2 groups=webservers

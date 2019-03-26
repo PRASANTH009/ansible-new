@@ -1,0 +1,27 @@
+
+---
+
+- name: Launch a compute instace
+  hosts: localhost
+  tasks:
+    - name: launch an instance 2
+      os_server:
+        state: present
+        auth:
+          auth_url: http://172.16.6.107/identity/v3
+          username: admin
+          password: login123
+          project_name: admin
+        name: webserver22
+        availability_zone: nova
+        image: 3836245f-2dd3-4a3c-9653-91d1f9055a3b
+        key_name: test
+        timeout: 200
+        flavor: m1.tiny
+        security_groups: default 
+        floating_ip_pools:
+        - public
+         #auto_ip: yes
+        nics:
+                #   - net-id: 770cab77-769a-4c28-bfe5-d0bb8ee6a024
+          - net-name: 770cab77-769a-4c28-bfe5-d0bb8ee6a024

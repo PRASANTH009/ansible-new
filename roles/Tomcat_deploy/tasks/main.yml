@@ -1,0 +1,12 @@
+---
+
+- name: Dlete previous warfiles
+  file: path=*.war state=absent
+
+- name: upload warfile from repository
+  copy:
+    src: /home/sudhir/ansible/spring-petclinic/target/petclinic.war
+    dest: /usr/share/tomcat/webapps/
+#- name: Copy to webapps folder
+#  command: cp sample.war /usr/share/tomcat/webapps/
+#  command: cp petclinic.war /usr/share/tomcat/webapps/

@@ -1,0 +1,27 @@
+---
+- name: Install mysql-client
+  apt: name=mysql-client
+
+- name: Add HAProxy repository
+  apt_repository: repo='ppa:vbernat/haproxy-1.5' state=present
+
+- name: Install HAProxy
+  apt: name=haproxy
+
+- name: Ensure HAProxy is enabled.
+  lineinfile:
+    dest: /etc/default/haproxy
+    regexp: "^ENABLED.+$"
+    line: "ENabLED=1"
+    state: present
+  when: ansible_os_family == 'Debian'
+
+- name: Copy HAproxy configuration in place.
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    mode: 0644
+  notify: restart haproxy
+
+- name: Ensure HAProxy is startes and enabled on boot.
+  service: name=haproxy state=started enabled=yes

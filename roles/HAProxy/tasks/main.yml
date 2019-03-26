@@ -1,0 +1,29 @@
+- name: Ensure HAProxy is enabled.
+  lineinfile:
+    dest: /etc/default/haproxy
+    regexp: "^ENABLED.+$"
+    line: "ENabLED=1"
+    state: present
+  when: ansible_os_family == 'Debian'
+
+- name: Get HAProxy version.
+  command: haproxy -v
+  register: haproxy_version_result
+  changed_when: false
+  check_mod: false
+
+- name: Get HAProxy version.
+  set_fact:
+    haproxy_version: "{{ '1.5'if '1.5.' in haprox_version_result.stdout else'1.4'}}"
+
+
+- name: Copy HAproxy configuration in place.
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    mode: 0644
+    validate: haproxy -f %s -c -q
+  notiy: restart haproxy
+
+- name: Ensure HAProxy is startes and enabled on boot.
+  service: name=haproxy state=started enabled=yes

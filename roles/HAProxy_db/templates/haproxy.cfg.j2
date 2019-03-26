@@ -1,0 +1,28 @@
+global
+  log         127.0.0.1 local2
+  chroot      /var/lib/haproxy
+  pidfile     /var/run/haproxy.pid
+  maxconn     1020
+  user        haproxy
+  group       haproxy
+  daemon
+
+  stats socket /var/lib/haproxy/stats.sock mode 600 level admin
+  stats timeout 2m
+
+defaults
+  log global
+    retries 2
+    timeout connect 30000
+    timeout server 100000
+    timeout client 50000
+
+listen mysql 
+    bind 0.0.0.0:3307
+    mode tcp
+    option mysql-check user haproxy_check
+    balance roundrobin
+    server mysql04 172.17.0.13:3306 check
+    server mysql01 172.17.0.5:3306 check
+    server mysql02 172.17.0.4:3306 check
+    server mysql03 172.17.0.3:3306 check

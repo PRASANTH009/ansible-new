@@ -1,0 +1,197 @@
+
+
+---
+
+- name: Launch a compute instace
+  hosts: localhost
+  tasks:
+    - name: create a network
+      os_network:
+        state: present
+        name: testnet1
+        external: True
+        shared: False
+      register: testnet_network
+    - debug:
+        msg: "Created {{ testnet_network.id }}"
+
+    - name: Create the test subnet
+      os_subnet:
+        state: present
+        network_name: "{{testnet_network.id}}"
+        name: tsetnet_sub1
+        ip_version: 4
+        cidr: 192.168.0.1/24
+        enable_dhcp: yes
+        dns_nameservers:
+          - 8.8.8.8
+      register: testnet_sub
+    - debug:
+        msg: "Created {{ testnet_sub.id }}"
+    - name: Create the test router
+      ignore_errors: yes #for some reasons, re-running this task gives errors
+      os_router:
+        state: present
+        name: testnet_router1
+        network: ac5f0de4-91ee-44be-9144-8b2defda76fa
+        #  external_fixed_ips:
+        #  - subnet: public-subnet
+           # ip: 172.24.4.1
+        interfaces:
+          - tsetnet_sub1
+    - name: Create a new security group
+      os_security_group:
+        state: present
+        name: secgr
+    - name: Create a new security group allowing any ICMP
+      os_security_group_rule:
+        security_group: secgr
+        protocol: icmp
+        remote_ip_prefix: 0.0.0.0/0
+    - name: Create a new security group allowing any SSH connection
+      os_security_group_rule:
+        security_group: secgr
+        protocol: tcp
+        port_range_min: 22
+        port_range_max: 22
+        remote_ip_prefix: 0.0.0.0/0
+    - name: Create a new security group allowing any tomcat connection
+      os_security_group_rule:
+        security_group: secgr
+        protocol: tcp
+        port_range_min: 8080
+        port_range_max: 8080
+        remote_ip_prefix: 0.0.0.0/0
+    - name: Create a new security group allowing any mysql connection
+      os_security_group_rule:
+        security_group: secgr
+        protocol: tcp
+        port_range_min: 3306
+        port_range_max: 3306
+        remote_ip_prefix: 0.0.0.0/0
+        
+    - name: launch an instance
+      os_server:
+        state: present
+        auth:
+          auth_url: http://172.16.6.107/identity/v3
+          username: admin
+          password: login123
+          project_name: admin
+        name: webserver12
+        availability_zone: nova
+        image: 6f2e70ba-f6fb-40f2-b5e6-9079d656ec59
+        key_name: test
+        timeout: 200
+        flavor: ds1G
+        security_groups: secgr 
+        floating_ip_pools:
+        - public
+         #auto_ip: yes
+        nics:
+                #   - net-id: d1d03f0d-a6fb-48d5-a945-d3e93d16ff50
+          - net-name: "{{testnet_network.id }}"
+        meta:
+          hostname: test1
+          group: uge_master
+      register: webserver12
+    - debug:
+        msg: "Create {{webserver12.server.interface_ip}}"
+
+    - wait_for:
+        host: "{{ webserver12.server.interface_ip }}"
+        port: 22
+        search_regex: OpenSSH
+
+    - name: adding ssh key to .ssh/known_hosts
+      shell: "ssh-keyscan {{ webserver12.server.interface_ip }} >> ~/.ssh/known_hosts"
+
+    - name: print to inventory file
+      add_host: name=webserver12 group=webservers ansible_ssh_host={{webserver12.server.interface_ip}} ansible_user=ubuntu
+
+
+    - name: launch an dbserver
+      os_server:
+        state: present
+        auth:
+          auth_url: http://172.16.6.107/identity/v3
+          username: admin
+          password: login123
+          project_name: admin
+        name: mysqldb
+        availability_zone: nova
+        image: fdcb736d-e460-4822-b1fb-36bc53ec5c50
+        key_name: test
+        timeout: 200
+        flavor: ds1G
+        security_groups: secgr 
+        floating_ip_pools:
+        - public
+         #auto_ip: yes
+        nics:
+                #   - net-id: d1d03f0d-a6fb-48d5-a945-d3e93d16ff50
+          - net-name: "{{testnet_network.id }}"
+        meta:
+          hostname: dbserver
+          group: uge_master
+      register: mysqldb
+    - debug:
+        msg: "Create {{mysqldb.server.interface_ip}}"
+
+    - wait_for:
+        host: "{{ mysqldb.server.interface_ip }}"
+        port: 22
+        search_regex: OpenSSH
+
+    - name: adding ssh key to .ssh/known_hosts
+      shell: "ssh-keyscan {{ mysqldb.server.interface_ip }} >> ~/.ssh/known_hosts"
+
+    - name: print to inventory file
+      add_host: name=dbserve1 group=dbserver ansible_ssh_host={{mysqldb.server.interface_ip}} ansible_user=ubuntu
+
+
+
+- hosts: webservers
+  remote_user: ubuntu
+  become: yes
+  become_method: sudo
+  roles:
+    - Tomcat 
+
+ 
+- hosts: dbserver
+  remote_user: ubuntu
+  become: yes
+  become_method: sudo
+  
+  roles:
+    -  mysql
+
+
+- name: build petclinic application
+  hosts: localhost
+  tasks:
+    - name: Delete file
+      shell: rm -rf spring*
+    - name: clone petclinic application
+      git: 
+        repo: https://github.com/spring-petclinic/spring-framework-petclinic.git 
+        dest: /home/sudhir/Downloads/Terraform-Automation-master/ansible/spring-petclinic
+        clone: yes
+    - name:
+      shell: sed -i 's+mysql://localhost+mysql://{{mysqldb.server.interface_ip}}+g' spring-petclinic/pom.xml
+    - name: providing username and password to war file
+      shell: sed -i 's/root/repl/' spring-petclinic/pom.xml && sed -i 's/<jdbc.password>petclinic/<jdbc.password>foobar/' spring-petclinic/pom.xml
+    - name: build with mvn
+      shell: cd spring* && mvn install -Dmaven.test.skip=true
+
+- name: deploy war file
+  hosts: webservers
+  remote_user: ubuntu
+  become: yes
+  become_method: sudo
+ 
+  roles:
+    - Tomcat_deploy
+
+
